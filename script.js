@@ -10,6 +10,7 @@ let peer = null, conn = null, connections = [];
 let isHost = false, myId = null, isAdmin = false;
 let myName = "Pilot";
 let feedMessages = [];
+let isTouchDevice = false;
 
 // Game State
 const canvas = document.getElementById('gameCanvas');
@@ -63,6 +64,31 @@ function startGameUI(code) {
     document.getElementById('connectionStatus').innerText = `ROOM: ${code}`;
 }
 
+// --- TOUCH CONTROLS ---
+window.addEventListener('touchstart', function onFirstTouch() {
+    isTouchDevice = true;
+    document.getElementById('touchControls').style.display = 'block';
+    // Remove listener after first detection
+    window.removeEventListener('touchstart', onFirstTouch, false);
+}, false);
+
+// Helper to bind touch buttons to keys
+function bindTouch(btnId, keyName) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+}
+
+// Bind all controls
+bindTouch('btnW', 'w');
+bindTouch('btnA', 'a');
+bindTouch('btnS', 's');
+bindTouch('btnD', 'd');
+bindTouch('btnSpace', 'Space');
+bindTouch('btnM', 'm');
+bindTouch('btnShift', 'Shift');
+
 // --- ADMIN ---
 function unlockAdmin() {
     const pass = document.getElementById('adminPass').value;
@@ -84,7 +110,6 @@ function activateAdminUI() {
 function toggleCheat(cheat) {
     if (!isAdmin) return;
     if (cheat === 'nuke') {
-        // Nuke Logic
         if (isHost) performNuke(myId);
         else conn.send({ type: 'cheat_toggle', cheat: 'nuke' });
         return;
@@ -105,7 +130,6 @@ function toggleCheat(cheat) {
 }
 
 function performNuke(sourceId) {
-    // Kill everyone except the source (Admin)
     for(let pid in players) {
         if (pid !== sourceId) {
             takeDamage(players[pid], 9999, players[sourceId].name);
@@ -208,10 +232,7 @@ function handlePacket(data, senderId) {
             lasers = data.lasers;
             particles = data.particles;
             
-            // Sync feed
-            if (data.newKills) {
-                data.newKills.forEach(msg => addKillFeed(msg));
-            }
+            if (data.newKills) data.newKills.forEach(msg => addKillFeed(msg));
             
             drawGame();
             updateHUD();
@@ -240,7 +261,6 @@ function createPlayer(id, isHost, name) {
 function gameLoopHost() {
     let newKills = [];
 
-    // 1. Process Players
     for (let id in players) {
         const p = players[id];
         if (p.dead) {
@@ -253,15 +273,11 @@ function gameLoopHost() {
 
         const input = (id === myId) ? keys : p.keys;
 
-        // Steering (Adjusted for "Stickiness" bug by ensuring case insensitive keys)
         if (input.a) p.angle -= 0.08;
         if (input.d) p.angle += 0.08;
-
-        // Throttle System
         if (input.w && p.throttle < 1.0) p.throttle += 0.01;
         if (input.s && p.throttle > 0.2) p.throttle -= 0.02;
 
-        // Boost Logic
         let boostMult = 1;
         if (input.Shift && p.boostFuel > 0) {
             boostMult = 1.5;
@@ -270,19 +286,15 @@ function gameLoopHost() {
             p.boostFuel += 0.2;
         }
 
-        // Calculate Speed
         let baseMax = p.superSpeed ? 25 : MAX_SPEED;
         p.speed = p.throttle * baseMax * boostMult;
 
-        // Movement
         p.x += Math.cos(p.angle) * p.speed;
         p.y += Math.sin(p.angle) * p.speed;
 
-        // Boundaries
         if(p.x < 0) p.x = 0; if(p.x > WORLD_SIZE) p.x = WORLD_SIZE;
         if(p.y < 0) p.y = 0; if(p.y > WORLD_SIZE) p.y = WORLD_SIZE;
 
-        // Actions
         if (input.Space) fireBullet(p);
         if (input.m) fireMissile(p);
         if ((input.l && p.hasLaser)) fireLaser(p);
@@ -292,15 +304,12 @@ function gameLoopHost() {
         if (p.laserCD > 0) p.laserCD--;
     }
 
-    // 2. Projectiles & Physics
     updateProjectiles(newKills);
     updateParticles();
 
-    // Sync
     const packet = { type: 'update', players, projectiles, lasers, particles, newKills };
     connections.forEach(c => c.send(packet));
     
-    // Host local feed update
     newKills.forEach(msg => addKillFeed(msg));
 
     drawGame();
@@ -334,7 +343,6 @@ function fireLaser(p) {
 }
 
 function updateProjectiles(killList) {
-    // Projectiles
     for (let i = projectiles.length - 1; i >= 0; i--) {
         const proj = projectiles[i];
         
@@ -351,7 +359,6 @@ function updateProjectiles(killList) {
         proj.y += Math.sin(proj.angle) * proj.speed;
         proj.life--;
 
-        // Collision
         let hit = false;
         if (proj.x < 0 || proj.x > WORLD_SIZE || proj.y < 0 || proj.y > WORLD_SIZE) hit = true;
         
@@ -360,9 +367,7 @@ function updateProjectiles(killList) {
             if (p.id !== proj.owner && !p.dead && !p.godMode) {
                 if (Math.hypot(p.x - proj.x, p.y - proj.y) < 25) {
                     let killerName = players[proj.owner] ? players[proj.owner].name : "Unknown";
-                    if (takeDamage(p, proj.type === 'missile' ? 40 : 10, killerName, killList)) {
-                        // Killed
-                    }
+                    takeDamage(p, proj.type === 'missile' ? 40 : 10, killerName, killList);
                     hit = true;
                     createExplosion(proj.x, proj.y, 'orange');
                     break;
@@ -372,7 +377,6 @@ function updateProjectiles(killList) {
         if (hit || proj.life <= 0) projectiles.splice(i, 1);
     }
 
-    // Lasers
     for (let i = lasers.length - 1; i >= 0; i--) {
         const l = lasers[i];
         l.life--;
@@ -429,7 +433,7 @@ function drawGame() {
     if (!players[myId]) return;
     const me = players[myId];
 
-    // Camera Center
+    // Camera
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -439,15 +443,14 @@ function drawGame() {
     const cy = canvas.height / 2 - me.y;
     ctx.translate(cx, cy);
 
-    // World Boundary
+    // World
     ctx.strokeStyle = '#333'; ctx.lineWidth = 10;
     ctx.strokeRect(0, 0, WORLD_SIZE, WORLD_SIZE);
 
-    // Stars
     ctx.fillStyle = '#fff';
     stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill(); });
 
-    // Projectiles & Lasers
+    // Combat Entities
     lasers.forEach(l => {
         ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.angle);
         ctx.strokeStyle = '#0ff'; ctx.lineWidth = 6; ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
@@ -461,19 +464,15 @@ function drawGame() {
         ctx.restore();
     });
 
-    // Players
     for (let id in players) {
         const p = players[id];
         if (p.dead) continue;
         
         ctx.save(); ctx.translate(p.x, p.y); 
-        
-        // Stats
         ctx.fillStyle = 'white'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
         ctx.fillText(p.name, 0, -40);
         ctx.fillStyle = 'red'; ctx.fillRect(-20, -35, 40, 4);
         ctx.fillStyle = '#0f0'; ctx.fillRect(-20, -35, 40 * (p.hp/p.maxHp), 4);
-        // Boost Bar
         ctx.fillStyle = '#0ff'; ctx.fillRect(-20, -30, 40 * (p.boostFuel/100), 2);
 
         ctx.rotate(p.angle);
@@ -493,6 +492,7 @@ function drawGame() {
     ctx.restore();
 
     // --- MINIMAP (Admin Only) ---
+    // Moved to Top Right to avoid admin panel
     if (isAdmin) drawMinimap(me);
 }
 
@@ -505,7 +505,7 @@ function drawMinimap(me) {
     const mapSize = 150;
     const padding = 10;
     const startX = canvas.width - mapSize - padding;
-    const startY = canvas.height - mapSize - padding;
+    const startY = padding + 10; // Top Right
 
     // Background
     ctx.fillStyle = 'rgba(0, 20, 0, 0.8)';
@@ -537,10 +537,8 @@ function updateHUD() {
 }
 
 // --- INPUTS ---
-// Fix: Use e.key.toLowerCase() to prevent Stuck Keys / Caps Lock issues
 window.addEventListener('keydown', e => {
-    if (document.activeElement.tagName === 'INPUT') return; // Don't move if typing in box
-    
+    if (document.activeElement.tagName === 'INPUT') return; 
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
     
     const k = e.key.toLowerCase();
