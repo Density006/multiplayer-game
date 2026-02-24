@@ -26,20 +26,26 @@
     <div id="hud">
         <div id="connectionStatus">Status: Offline</div>
         <div class="controls-hint">
-            W/S: Throttle | A/D: Turn | SPACE: Shoot | M: Missile
+            WASD: Fly | SHIFT: Boost | SPACE: Shoot | M: Missile
         </div>
         <div id="healthBarBox">
             <div id="healthBar"></div>
         </div>
-        <div id="speedGauge">SPEED: 0%</div>
+        <div id="speedGauge">THRUST: 0%</div>
     </div>
+
+    <div id="killFeed"></div>
     
     <div id="notification"></div>
 
     <div id="settingsCog" onclick="toggleAdminPanel()">⚙️</div>
 
     <div id="adminPanel">
-        <h3>ADMIN CONTROL</h3>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>ADMIN CONTROL</h3>
+            <button onclick="toggleAdminPanel()" style="padding:2px 8px; font-size:12px; margin:0; background:red;">X</button>
+        </div>
+
         <div id="loginSection">
             <input type="password" id="adminPass" placeholder="ENTER PIN (8007)">
             <button onclick="unlockAdmin()" class="cheat-btn">ACCESS</button>
@@ -49,6 +55,7 @@
             <div class="cheat-row"><button id="btnGod" onclick="toggleCheat('god')" class="cheat-btn">GOD MODE</button></div>
             <div class="cheat-row"><button id="btnSpeed" onclick="toggleCheat('speed')" class="cheat-btn">SUPER SPEED</button></div>
             <div class="cheat-row"><button id="btnRapid" onclick="toggleCheat('rapid')" class="cheat-btn">RAPID FIRE</button></div>
+            <div class="cheat-row"><button id="btnNuke" onclick="toggleCheat('nuke')" class="cheat-btn" style="border-color: red; color: red;">☢️ NUKE ALL ☢️</button></div>
         </div>
     </div>
 
