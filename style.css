@@ -1,59 +1,84 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sky Battle P2P</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-</head>
-<body>
+body { 
+    margin: 0; 
+    background: #050505; 
+    color: white; 
+    font-family: 'Courier New', monospace; 
+    overflow: hidden; 
+}
 
-    <div id="menu">
-        <h1 class="glow">SKY BATTLE</h1>
-        
-        <input type="text" id="username" placeholder="PILOT NAME" maxlength="10">
-        <br><br>
+/* Menu */
+#menu { 
+    position: absolute; top: 50%; left: 50%; 
+    transform: translate(-50%, -50%); 
+    text-align: center; 
+    background: rgba(10, 20, 30, 0.95); 
+    padding: 40px; 
+    border: 2px solid #00ffcc; 
+    border-radius: 10px; 
+    z-index: 100; 
+    box-shadow: 0 0 20px #00ffcc;
+}
 
-        <button onclick="hostGame()">HOST MATCH</button>
-        <div class="divider"></div>
-        <input type="text" id="joinCode" maxlength="4" placeholder="ENTER 4-DIGIT CODE">
-        <br>
-        <button onclick="joinGame()">JOIN MATCH</button>
-        <p id="statusMsg">Ready to deploy</p>
-    </div>
+.glow { text-shadow: 0 0 15px #00ffcc; color: #00ffcc; letter-spacing: 5px; }
 
-    <div id="hud">
-        <div id="connectionStatus">Status: Offline</div>
-        <div class="controls-hint">
-            W/S: Throttle | A/D: Turn | SPACE: Shoot | M: Missile
-        </div>
-        <div id="healthBarBox">
-            <div id="healthBar"></div>
-        </div>
-        <div id="speedGauge">SPEED: 0%</div>
-    </div>
-    
-    <div id="notification"></div>
+input { 
+    padding: 10px; font-size: 18px; 
+    text-transform: uppercase; text-align: center; 
+    letter-spacing: 2px; background: #000; 
+    color: #00ffcc; border: 1px solid #00ffcc; 
+    width: 220px; outline: none;
+}
 
-    <div id="settingsCog" onclick="toggleAdminPanel()">⚙️</div>
+button { 
+    padding: 12px 24px; font-size: 18px; 
+    cursor: pointer; background: #00ffcc; 
+    color: black; border: none; font-weight: bold; 
+    margin: 5px; transition: 0.2s; text-transform: uppercase;
+}
+button:hover { background: #fff; box-shadow: 0 0 15px #fff; transform: scale(1.05); }
 
-    <div id="adminPanel">
-        <h3>ADMIN CONTROL</h3>
-        <div id="loginSection">
-            <input type="password" id="adminPass" placeholder="ENTER PIN (8007)">
-            <button onclick="unlockAdmin()" class="cheat-btn">ACCESS</button>
-        </div>
-        <div id="cheatSection">
-            <div class="cheat-row"><button id="btnLaser" onclick="toggleCheat('laser')" class="cheat-btn">UNLOCK LASER (L)</button></div>
-            <div class="cheat-row"><button id="btnGod" onclick="toggleCheat('god')" class="cheat-btn">GOD MODE</button></div>
-            <div class="cheat-row"><button id="btnSpeed" onclick="toggleCheat('speed')" class="cheat-btn">SUPER SPEED</button></div>
-            <div class="cheat-row"><button id="btnRapid" onclick="toggleCheat('rapid')" class="cheat-btn">RAPID FIRE</button></div>
-        </div>
-    </div>
+.divider { margin: 20px 0; border-top: 1px solid #333; }
+#statusMsg { color: #888; font-size: 12px; margin-top: 10px; }
 
-    <canvas id="gameCanvas"></canvas>
+/* HUD */
+#hud { position: absolute; top: 10px; left: 10px; pointer-events: none; z-index: 10; }
+#connectionStatus { font-size: 18px; font-weight: bold; color: #00ffcc; text-shadow: 1px 1px 0 #000; }
+.controls-hint { margin-top:5px; font-size:12px; color:#aaa; background: rgba(0,0,0,0.5); padding: 5px; }
 
-    <script src="script.js"></script>
-</body>
-</html>
+#healthBarBox { 
+    margin-top: 10px; width: 200px; height: 20px; 
+    border: 2px solid white; background: #333;
+}
+#healthBar { width: 100%; height: 100%; background: lime; transition: width 0.1s; }
+#speedGauge { margin-top: 5px; font-size: 14px; color: yellow; }
+
+/* Admin */
+#settingsCog {
+    position: absolute; top: 10px; right: 10px;
+    font-size: 30px; cursor: pointer; z-index: 101;
+    transition: transform 0.3s; opacity: 0.7;
+}
+#settingsCog:hover { transform: rotate(90deg); opacity: 1; }
+
+#adminPanel { 
+    display: none; position: absolute; top: 50px; right: 10px; 
+    background: rgba(0,0,0,0.9); padding: 15px; 
+    border: 2px solid red; width: 220px; z-index: 100;
+}
+#adminPanel h3 { margin: 0 0 10px 0; color: red; text-align: center; border-bottom: 1px solid red; }
+#loginSection { text-align: center; }
+#cheatSection { display: none; }
+.cheat-row { margin-bottom: 5px; }
+.cheat-btn { 
+    background: #333; color: white; font-size: 12px; 
+    padding: 8px; width: 100%; border: 1px solid #555; 
+}
+.cheat-btn.active { background: red; color: white; border-color: white; }
+
+#notification {
+    position: absolute; top: 25%; width: 100%; text-align: center;
+    font-size: 30px; color: yellow; text-shadow: 2px 2px 5px #000; 
+    pointer-events: none; z-index: 50;
+}
+
+canvas { display: block; }
