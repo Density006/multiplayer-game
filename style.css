@@ -4,7 +4,7 @@ body {
     color: white; 
     font-family: 'Courier New', monospace; 
     overflow: hidden; 
-    touch-action: none; /* Prevents zooming/scrolling on mobile */
+    touch-action: none;
     user-select: none;
 }
 
@@ -54,7 +54,7 @@ button:hover { background: #fff; box-shadow: 0 0 15px #fff; transform: scale(1.0
 #healthBar { width: 100%; height: 100%; background: lime; transition: width 0.1s; }
 #speedGauge { margin-top: 5px; font-size: 14px; color: yellow; }
 
-/* Kill Feed (Centered Top) */
+/* Kill Feed */
 #killFeed {
     position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
     width: 300px; text-align: center; pointer-events: none;
@@ -70,14 +70,15 @@ button:hover { background: #fff; box-shadow: 0 0 15px #fff; transform: scale(1.0
 /* Admin */
 #settingsCog {
     position: absolute; bottom: 10px; right: 10px;
-    font-size: 30px; cursor: pointer; z-index: 101;
+    font-size: 40px; cursor: pointer; z-index: 101; /* Made bigger for touch */
     transition: transform 0.3s; opacity: 0.7;
+    background: rgba(0,0,0,0.5); border-radius: 50%; padding: 5px;
 }
 #settingsCog:hover { transform: rotate(90deg); opacity: 1; }
 
 #adminPanel { 
-    display: none; position: absolute; bottom: 50px; right: 10px; 
-    background: rgba(0,0,0,0.9); padding: 15px; 
+    display: none; position: absolute; bottom: 70px; right: 10px; 
+    background: rgba(0,0,0,0.95); padding: 15px; 
     border: 2px solid red; width: 220px; z-index: 100;
 }
 #adminPanel h3 { margin: 0 0 10px 0; color: red; text-align: center; border-bottom: 1px solid red; }
@@ -98,10 +99,10 @@ button:hover { background: #fff; box-shadow: 0 0 15px #fff; transform: scale(1.0
 
 /* Touch Controls */
 #touchControls {
-    display: none; /* Hidden unless touch detected */
+    display: none; 
     position: absolute; bottom: 20px; left: 0; width: 100%;
     height: 150px; z-index: 90;
-    pointer-events: none; /* Let clicks pass through empty space */
+    pointer-events: none; 
 }
 #stickLeft {
     position: absolute; bottom: 10px; left: 20px;
