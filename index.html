@@ -11,6 +11,10 @@
 
     <div id="menu">
         <h1 class="glow">SKY BATTLE</h1>
+        
+        <input type="text" id="username" placeholder="PILOT NAME" maxlength="10">
+        <br><br>
+
         <button onclick="hostGame()">HOST MATCH</button>
         <div class="divider"></div>
         <input type="text" id="joinCode" maxlength="4" placeholder="ENTER 4-DIGIT CODE">
@@ -22,11 +26,12 @@
     <div id="hud">
         <div id="connectionStatus">Status: Offline</div>
         <div class="controls-hint">
-            WASD: Move | SPACE: Shoot | M: Missile
+            W/S: Throttle | A/D: Turn | SPACE: Shoot | M: Missile
         </div>
         <div id="healthBarBox">
             <div id="healthBar"></div>
         </div>
+        <div id="speedGauge">SPEED: 0%</div>
     </div>
     
     <div id="notification"></div>
@@ -35,12 +40,10 @@
 
     <div id="adminPanel">
         <h3>ADMIN CONTROL</h3>
-        
         <div id="loginSection">
-            <input type="password" id="adminPass" placeholder="ENTER PIN">
+            <input type="password" id="adminPass" placeholder="ENTER PIN (8007)">
             <button onclick="unlockAdmin()" class="cheat-btn">ACCESS</button>
         </div>
-
         <div id="cheatSection">
             <div class="cheat-row"><button id="btnLaser" onclick="toggleCheat('laser')" class="cheat-btn">UNLOCK LASER (L)</button></div>
             <div class="cheat-row"><button id="btnGod" onclick="toggleCheat('god')" class="cheat-btn">GOD MODE</button></div>
