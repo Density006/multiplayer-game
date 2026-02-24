@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sky Battle P2P</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -37,6 +37,27 @@
     <div id="killFeed"></div>
     
     <div id="notification"></div>
+
+    <div id="touchControls">
+        <div id="stickLeft">
+            <div class="touch-row">
+                <button class="t-btn" id="btnW">▲</button>
+            </div>
+            <div class="touch-row">
+                <button class="t-btn" id="btnA">◀</button>
+                <button class="t-btn" id="btnS">▼</button>
+                <button class="t-btn" id="btnD">▶</button>
+            </div>
+        </div>
+
+        <div id="stickRight">
+            <button class="t-btn round big" id="btnSpace">🔥</button>
+            <div class="sub-actions">
+                <button class="t-btn round" id="btnShift">⚡</button>
+                <button class="t-btn round" id="btnM">🚀</button>
+            </div>
+        </div>
+    </div>
 
     <div id="settingsCog" onclick="toggleAdminPanel()">⚙️</div>
 
