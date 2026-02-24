@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sky Battle P2P</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: white; font-family: 'Courier New', monospace; overflow: hidden; }
+        
+        /* UI LAYOUT */
+        #menu { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            text-align: center; background: rgba(0,0,0,0.9); padding: 40px; 
+            border: 2px solid #0f0; border-radius: 10px; z-index: 100;
+        }
+        input { 
+            padding: 10px; font-size: 18px; text-transform: uppercase; 
+            text-align: center; letter-spacing: 5px; width: 120px; 
+            background: #000; color: #0f0; border: 1px solid #0f0; margin-bottom: 10px;
+        }
+        button { 
+            padding: 10px 20px; font-size: 18px; cursor: pointer; 
+            background: #0f0; border: none; font-weight: bold; margin: 5px; 
+        }
+        button:hover { background: #0a0; }
+        
+        /* HUD & ADMIN */
+        #hud { position: absolute; top: 10px; left: 10px; pointer-events: none; }
+        #adminPanel { 
+            display: none; position: absolute; top: 10px; right: 10px; 
+            background: rgba(0,0,0,0.8); padding: 15px; border: 1px solid red; 
+        }
+        #notification {
+            position: absolute; top: 20%; width: 100%; text-align: center;
+            font-size: 24px; color: yellow; text-shadow: 2px 2px #000; pointer-events: none;
+        }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+    <div id="menu">
+        <h1 style="color:#0f0; text-shadow: 0 0 10px #0f0;">SKY BATTLE</h1>
+        <button onclick="hostGame()">HOST NEW GAME</button>
+        <div style="margin: 20px 0; border-top: 1px solid #333;"></div>
+        <input type="text" id="joinCode" maxlength="4" placeholder="----">
+        <br>
+        <button onclick="joinGame()">JOIN GAME</button>
+        <p id="statusMsg" style="color: #888; font-size: 12px;">Ready</p>
+    </div>
+
+    <div id="hud">
+        <div id="connectionStatus">Status: Offline</div>
+        <div style="margin-top:5px; font-size:12px; color:#aaa;">
+            Controls: WASD (Fly) | SPACE (Shoot) | M (Missile)
+        </div>
+    </div>
+    
+    <div id="notification"></div>
+
+    <div id="adminPanel">
+        <h3 style="margin:0 0 10px 0; color:red;">ADMIN ACCESS</h3>
+        <input type="password" id="adminPass" placeholder="PASSWORD" style="width:100px; font-size:12px;">
+        <button onclick="unlockAdmin()" style="padding:5px; font-size:12px; background:red; color:white;">UNLOCK LASER</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        /** * CONFIGURATION 
+         * Use a unique prefix so your players don't clash with other people using PeerJS
+         */
+        const GAME_ID_PREFIX = "plane-war-p2p-v1-"; 
+        const ADMIN_PASSWORD = "admin"; // Change this if you want
+
+        // -- GLOBALS --
+        let peer = null;
+        let conn = null; // Client's connection to host
+        let connections = []; // Host's list of connected players
+        let isHost = false;
+        let myId = null;
+        let isAdmin = false; // Local admin status
+
+        // Game State
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let players = {};
+        let projectiles = [];
+        let lasers = [];
+        
+        // Input State
+        const keys = { w: false, a: false, d: false, Space: false };
+
+        // Setup Canvas
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- NETWORKING (PEERJS) ---
+
+        function hostGame() {
+            // Generate a random 4-digit code
+            const code = Math.floor(1000 + Math.random() * 9000).toString();
+            setStatus("Starting Host...");
+            
+            // Create Peer with a specific ID (Prefix + Code)
+            peer = new Peer(GAME_ID_PREFIX + code);
+
+            peer.on('open', (id) => {
+                myId = id;
+                isHost = true;
+                
+                console.log("Hosting Party: " + code);
+                startGameUI();
+                document.getElementById('connectionStatus').innerText = `HOSTING | CODE: ${code}`;
+                
+                // Add self to game
+                players[myId] = createPlayer(myId, true);
+
+                // Start Game Loop (Host runs the engine)
+                requestAnimationFrame(gameLoopHost);
+            });
+
+            peer.on('connection', (c) => {
+                // When a player connects
+                connections.push(c);
+                console.log("Player connected: " + c.peer);
+                
+                // Add new player
+                players[c.peer] = createPlayer(c.peer, false);
+
+                // Listen for data from this player
+                c.on('data', (data) => handleDataFromClient(data, c.peer));
+                
+                c.on('close', () => {
+                    delete players[c.peer];
+                    connections = connections.filter(x => x.peer !== c.peer);
+                });
+            });
+
+            peer.on('error', (err) => alert("Error: " + err.type));
+        }
+
+        function joinGame() {
+            const code = document.getElementById('joinCode').value;
+            if (code.length !== 4) return alert("Please enter a 4-digit code");
+            
+            setStatus("Connecting...");
+            peer = new Peer(); // Client gets a random ID
+
+            peer.on('open', (id) => {
+                myId = id;
+                // Connect to the Host ID
+                const hostId = GAME_ID_PREFIX + code;
+                conn = peer.connect(hostId);
+
+                conn.on('open', () => {
+                    console.log("Connected to Host");
+                    isHost = false;
+                    startGameUI();
+                    document.getElementById('connectionStatus').innerText = `CONNECTED TO ${code}`;
+                });
+
+                conn.on('data', (data) => handleDataFromHost(data));
+                
+                conn.on('close', () => {
+                    alert("Host disconnected.");
+                    location.reload();
+                });
+            });
+            
+            peer.on('error', (err) => {
+                if(err.type === 'peer-unavailable') alert("Game code not found!");
+                else alert("Error: " + err.type);
+            });
+        }
+
+        // --- DATA HANDLING ---
+
+        // HOST: Process inputs from clients
+        function handleDataFromClient(data, playerId) {
+            if (!players[playerId]) return;
+            const p = players[playerId];
+
+            if (data.type === 'input') {
+                p.keys = data.keys; // Update player's intended movement
+            }
+            if (data.type === 'action') {
+                if (data.action === 'shoot') spawnBullet(p);
+                if (data.action === 'missile') spawnMissile(p);
+                if (data.action === 'laser' && p.isAdmin) spawnLaser(p);
+                
+                // Admin Verification
+                if (data.action === 'admin_login') {
+                    if (data.pass === ADMIN_PASSWORD) {
+                        p.isAdmin = true;
+                        // Tell client they succeeded
+                        const conn = connections.find(c => c.peer === playerId);
+                        if(conn) conn.send({ type: 'admin_success' });
+                    }
+                }
+            }
+        }
+
+        // CLIENT: Process game state from host
+        function handleDataFromHost(data) {
+            if (data.type === 'update') {
+                // Sync state directly for rendering
+                players = data.players;
+                projectiles = data.projectiles;
+                lasers = data.lasers;
+                drawGame(); // Render immediately on update
+            }
+            if (data.type === 'admin_success') {
+                isAdmin = true;
+                notify("LASER UNLOCKED (Press 'L')");
+                document.getElementById('adminPanel').style.display = 'none';
+            }
+        }
+
+        // --- GAME LOGIC (HOST ONLY) ---
+
+        function createPlayer(id, isHost) {
+            return {
+                id: id,
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                angle: Math.random() * 6.28,
+                color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                keys: { w:false, a:false, d:false },
+                isAdmin: false,
+                isHost: isHost
+            };
+        }
+
+        function spawnBullet(p) {
+            projectiles.push({
+                x: p.x, y: p.y, angle: p.angle, speed: 10, 
+                type: 'bullet', owner: p.id, life: 60
+            });
+        }
+
+        function spawnMissile(p) {
+            // Find nearest enemy
+            let targetId = null;
+            let minDist = Infinity;
+            for(let pid in players) {
+                if(pid !== p.id) {
+                    const enemy = players[pid];
+                    const dist = Math.hypot(enemy.x - p.x, enemy.y - p.y);
+                    if(dist < minDist) { minDist = dist; targetId = pid; }
+                }
+            }
+
+            projectiles.push({
+                x: p.x, y: p.y, angle: p.angle, speed: 4, 
+                type: 'missile', owner: p.id, target: targetId, life: 200
+            });
+        }
+
+        function spawnLaser(p) {
+            lasers.push({
+                x: p.x, y: p.y, angle: p.angle, owner: p.id, life: 10
+            });
+        }
+
+        function gameLoopHost() {
+            // 1. Process Logic
+            updateGameLogic();
+
+            // 2. Broadcast State
+            const state = { type: 'update', players, projectiles, lasers };
+            connections.forEach(c => c.send(state));
+
+            // 3. Render Host's View
+            drawGame();
+
+            requestAnimationFrame(gameLoopHost);
+        }
+
+        function updateGameLogic() {
+            // Update Players
+            for (let id in players) {
+                const p = players[id];
+                // Use local keys if it's the host, otherwise use network keys
+                const input = (id === myId) ? keys : p.keys;
+
+                if (input.a) p.angle -= 0.08;
+                if (input.d) p.angle += 0.08;
+                if (input.w) {
+                    p.x += Math.cos(p.angle) * 5;
+                    p.y += Math.sin(p.angle) * 5;
+                }
+                
+                // Screen Wrap
+                if(p.x < 0) p.x = canvas.width;
+                if(p.x > canvas.width) p.x = 0;
+                if(p.y < 0) p.y = canvas.height;
+                if(p.y > canvas.height) p.y = 0;
+            }
+
+            // Update Projectiles
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const proj = projectiles[i];
+                
+                if (proj.type === 'missile' && proj.target && players[proj.target]) {
+                    const target = players[proj.target];
+                    const desired = Math.atan2(target.y - proj.y, target.x - proj.x);
+                    let diff = desired - proj.angle;
+                    while (diff <= -Math.PI) diff += Math.PI * 2;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    proj.angle += Math.sign(diff) * 0.05; // Turn speed
+                }
+
+                proj.x += Math.cos(proj.angle) * proj.speed;
+                proj.y += Math.sin(proj.angle) * proj.speed;
+                proj.life--;
+
+                if (proj.life <= 0) projectiles.splice(i, 1);
+            }
+
+            // Update Lasers
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                lasers[i].life--;
+                if(lasers[i].life <= 0) lasers.splice(i, 1);
+            }
+        }
+
+        // --- RENDERING (Common) ---
+        function drawGame() {
+            // Clear Screen
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Lasers
+            ctx.save();
+            lasers.forEach(l => {
+                ctx.translate(l.x, l.y);
+                ctx.rotate(l.angle);
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 4;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#0ff';
+                ctx.beginPath();
+                ctx.moveTo(0,0);
+                ctx.lineTo(2000, 0); // Infinite beam
+                ctx.stroke();
+                ctx.setTransform(1,0,0,1,0,0);
+            });
+            ctx.restore();
+
+            // Draw Players
+            for (let id in players) {
+                const p = players[id];
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.angle);
+                
+                // Plane Body
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.moveTo(15, 0);
+                ctx.lineTo(-10, 10);
+                ctx.lineTo(-5, 0);
+                ctx.lineTo(-10, -10);
+                ctx.fill();
+
+                // Host Indicator
+                if (p.isHost) {
+                    ctx.fillStyle = 'gold';
+                    ctx.font = '10px Arial';
+                    ctx.fillText("HOST", -10, -15);
+                }
+                
+                ctx.restore();
+            }
+
+            // Draw Projectiles
+            projectiles.forEach(proj => {
+                ctx.save();
+                ctx.translate(proj.x, proj.y);
+                ctx.rotate(proj.angle);
+                
+                if (proj.type === 'bullet') {
+                    ctx.fillStyle = 'yellow';
+                    ctx.fillRect(-2, -2, 8, 4);
+                } else if (proj.type === 'missile') {
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(-4, -2, 12, 4);
+                }
+                ctx.restore();
+            });
+        }
+
+        // --- INPUT HANDLING ---
+        
+        function startGameUI() {
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('adminPanel').style.display = 'block';
+        }
+
+        function setStatus(msg) {
+            document.getElementById('statusMsg').innerText = msg;
+        }
+
+        function notify(msg) {
+            const n = document.getElementById('notification');
+            n.innerText = msg;
+            setTimeout(() => n.innerText = '', 3000);
+        }
+
+        // Admin Unlock Request
+        function unlockAdmin() {
+            const pass = document.getElementById('adminPass').value;
+            if (isHost) {
+                if (pass === ADMIN_PASSWORD) {
+                    isAdmin = true;
+                    notify("ADMIN ACCESS GRANTED");
+                    players[myId].isAdmin = true;
+                    document.getElementById('adminPanel').style.display = 'none';
+                }
+            } else {
+                // Send request to host
+                conn.send({ type: 'action', action: 'admin_login', pass: pass });
+            }
+        }
+
+        // Keyboard Listeners
+        window.addEventListener('keydown', (e) => {
+            if (!myId) return;
+
+            // Movement keys
+            if(e.key === 'w' || e.key === 'ArrowUp') keys.w = true;
+            if(e.key === 'a' || e.key === 'ArrowLeft') keys.a = true;
+            if(e.key === 'd' || e.key === 'ArrowRight') keys.d = true;
+
+            // Action keys
+            let action = null;
+            if(e.key === ' ') action = 'shoot';
+            if(e.key === 'm') action = 'missile';
+            if((e.key === 'l' || e.key === 'L') && isAdmin) action = 'laser';
+
+            if (action) {
+                if (isHost) {
+                    // Host executes immediately
+                    if (action === 'shoot') spawnBullet(players[myId]);
+                    if (action === 'missile') spawnMissile(players[myId]);
+                    if (action === 'laser') spawnLaser(players[myId]);
+                } else if (conn) {
+                    // Client sends request
+                    conn.send({ type: 'action', action: action });
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if(e.key === 'w' || e.key === 'ArrowUp') keys.w = false;
+            if(e.key === 'a' || e.key === 'ArrowLeft') keys.a = false;
+            if(e.key === 'd' || e.key === 'ArrowRight') keys.d = false;
+        });
+
+        // Client Input Sender Loop
+        setInterval(() => {
+            if (!isHost && conn && conn.open) {
+                conn.send({ type: 'input', keys: keys });
+            }
+        }, 50); // Send input 20 times a second
+
+    </script>
+</body>
+</html>
