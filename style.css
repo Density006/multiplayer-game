@@ -4,6 +4,8 @@ body {
     color: white; 
     font-family: 'Courier New', monospace; 
     overflow: hidden; 
+    touch-action: none; /* Prevents zooming/scrolling on mobile */
+    user-select: none;
 }
 
 /* Menu */
@@ -52,15 +54,16 @@ button:hover { background: #fff; box-shadow: 0 0 15px #fff; transform: scale(1.0
 #healthBar { width: 100%; height: 100%; background: lime; transition: width 0.1s; }
 #speedGauge { margin-top: 5px; font-size: 14px; color: yellow; }
 
-/* Kill Feed */
+/* Kill Feed (Centered Top) */
 #killFeed {
-    position: absolute; top: 10px; right: 10px;
-    width: 250px; text-align: right; pointer-events: none;
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 300px; text-align: center; pointer-events: none;
     z-index: 50;
 }
 .kill-msg {
     color: #ff4444; font-size: 14px; margin-bottom: 5px;
-    text-shadow: 1px 1px 0 #000;
+    text-shadow: 1px 1px 0 #000; background: rgba(0,0,0,0.3);
+    padding: 2px 5px; border-radius: 4px;
     opacity: 1; transition: opacity 1s;
 }
 
@@ -92,5 +95,32 @@ button:hover { background: #fff; box-shadow: 0 0 15px #fff; transform: scale(1.0
     font-size: 30px; color: yellow; text-shadow: 2px 2px 5px #000; 
     pointer-events: none; z-index: 50;
 }
+
+/* Touch Controls */
+#touchControls {
+    display: none; /* Hidden unless touch detected */
+    position: absolute; bottom: 20px; left: 0; width: 100%;
+    height: 150px; z-index: 90;
+    pointer-events: none; /* Let clicks pass through empty space */
+}
+#stickLeft {
+    position: absolute; bottom: 10px; left: 20px;
+    pointer-events: auto;
+}
+#stickRight {
+    position: absolute; bottom: 10px; right: 20px;
+    pointer-events: auto; display: flex; align-items: flex-end; gap: 15px;
+}
+.touch-row { display: flex; justify-content: center; }
+.t-btn {
+    width: 50px; height: 50px; background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(0, 255, 204, 0.5); color: #00ffcc;
+    font-size: 20px; border-radius: 8px; margin: 2px;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.t-btn:active { background: rgba(0, 255, 204, 0.4); }
+.round { border-radius: 50%; }
+.big { width: 70px; height: 70px; font-size: 30px; background: rgba(255, 0, 0, 0.2); border-color: red; color: white; }
+.sub-actions { display: flex; flex-direction: column; gap: 10px; }
 
 canvas { display: block; }
