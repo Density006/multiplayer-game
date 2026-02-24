@@ -18,7 +18,7 @@ const ctx = canvas.getContext('2d');
 
 let players = {};
 let projectiles = [];
-let lasers = [];
+let lasers = []; // Now stores active beam data for the current frame only
 let particles = [];
 let stars = [];
 
@@ -68,11 +68,9 @@ function startGameUI(code) {
 window.addEventListener('touchstart', function onFirstTouch() {
     isTouchDevice = true;
     document.getElementById('touchControls').style.display = 'block';
-    // Remove listener after first detection
     window.removeEventListener('touchstart', onFirstTouch, false);
 }, false);
 
-// Helper to bind touch buttons to keys
 function bindTouch(btnId, keyName) {
     const btn = document.getElementById(btnId);
     if (!btn) return;
@@ -80,7 +78,6 @@ function bindTouch(btnId, keyName) {
     btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
 }
 
-// Bind all controls
 bindTouch('btnW', 'w');
 bindTouch('btnA', 'a');
 bindTouch('btnS', 's');
@@ -88,6 +85,7 @@ bindTouch('btnD', 'd');
 bindTouch('btnSpace', 'Space');
 bindTouch('btnM', 'm');
 bindTouch('btnShift', 'Shift');
+bindTouch('btnL', 'l'); // Bind the new Laser button
 
 // --- ADMIN ---
 function unlockAdmin() {
@@ -104,6 +102,10 @@ function activateAdminUI() {
     isAdmin = true;
     document.getElementById('loginSection').style.display = 'none';
     document.getElementById('cheatSection').style.display = 'block';
+    
+    // Show Laser button on touch devices
+    document.getElementById('btnL').style.display = 'block';
+    
     notify("ADMIN ACCESS GRANTED");
 }
 
@@ -202,7 +204,6 @@ function joinGame() {
 
 function handlePacket(data, senderId) {
     if (isHost) {
-        // HOST LOGIC
         if (data.type === 'join') {
             players[senderId] = createPlayer(senderId, false, data.name || "Unknown");
             addKillFeed(`${data.name} joined the airspace`);
@@ -225,7 +226,6 @@ function handlePacket(data, senderId) {
             if (data.cheat === 'nuke') performNuke(senderId);
         }
     } else {
-        // CLIENT LOGIC
         if (data.type === 'update') {
             players = data.players;
             projectiles = data.projectiles;
@@ -260,6 +260,7 @@ function createPlayer(id, isHost, name) {
 
 function gameLoopHost() {
     let newKills = [];
+    lasers = []; // Reset lasers every frame for continuous beam logic
 
     for (let id in players) {
         const p = players[id];
@@ -297,14 +298,18 @@ function gameLoopHost() {
 
         if (input.Space) fireBullet(p);
         if (input.m) fireMissile(p);
-        if ((input.l && p.hasLaser)) fireLaser(p);
+        
+        // Continuous Laser Check
+        if (input.l && p.hasLaser) {
+            lasers.push({ x: p.x, y: p.y, angle: p.angle, owner: p.id });
+        }
 
         if (p.bulletCD > 0) p.bulletCD--;
         if (p.missileCD > 0) p.missileCD--;
-        if (p.laserCD > 0) p.laserCD--;
     }
 
-    updateProjectiles(newKills);
+    updateProjectiles(newKills); // Handles bullets and missiles
+    updateLasers(newKills);      // NEW: Handles immediate laser rays
     updateParticles();
 
     const packet = { type: 'update', players, projectiles, lasers, particles, newKills };
@@ -336,10 +341,35 @@ function fireMissile(p) {
     p.missileCD = p.rapidFire ? 15 : 100;
 }
 
-function fireLaser(p) {
-    if (p.laserCD > 0) return;
-    lasers.push({ x: p.x, y: p.y, angle: p.angle, owner: p.id, life: 10 }); 
-    p.laserCD = p.rapidFire ? 10 : 80;
+// Replaces old projectile based laser logic with hitscan
+function updateLasers(killList) {
+    for (let i = 0; i < lasers.length; i++) {
+        const l = lasers[i];
+        
+        // Check collisions for this beam against all players
+        for (let pid in players) {
+            const p = players[pid];
+            if (p.id !== l.owner && !p.dead && !p.godMode) {
+                // Ray-Circle Intersection approximation
+                const dx = p.x - l.x;
+                const dy = p.y - l.y;
+                
+                // Dot product to ensure target is in front of laser
+                const dot = dx * Math.cos(l.angle) + dy * Math.sin(l.angle);
+                
+                // Perpendicular distance from line
+                const dist = Math.abs(dy * Math.cos(l.angle) - dx * Math.sin(l.angle));
+                
+                // If close to line and in front, and within range (2000px)
+                if (dist < 20 && dot > 0 && dot < 2000) {
+                    let killerName = players[l.owner] ? players[l.owner].name : "Laser";
+                    // Continuous damage per frame (very fast)
+                    takeDamage(p, 2, killerName, killList);
+                    createExplosion(p.x, p.y, 'cyan', 1);
+                }
+            }
+        }
+    }
 }
 
 function updateProjectiles(killList) {
@@ -376,28 +406,6 @@ function updateProjectiles(killList) {
         }
         if (hit || proj.life <= 0) projectiles.splice(i, 1);
     }
-
-    for (let i = lasers.length - 1; i >= 0; i--) {
-        const l = lasers[i];
-        l.life--;
-        if (players[l.owner]) { l.x = players[l.owner].x; l.y = players[l.owner].y; l.angle = players[l.owner].angle; }
-
-        for (let pid in players) {
-            const p = players[pid];
-            if (p.id !== l.owner && !p.dead && !p.godMode) {
-                const dx = p.x - l.x, dy = p.y - l.y;
-                const dot = dx * Math.cos(l.angle) + dy * Math.sin(l.angle);
-                const dist = Math.abs(dy * Math.cos(l.angle) - dx * Math.sin(l.angle));
-                
-                if (dist < 20 && dot > 0 && dot < 2000) {
-                    let killerName = players[l.owner] ? players[l.owner].name : "Laser";
-                    takeDamage(p, 5, killerName, killList);
-                    createExplosion(p.x, p.y, 'cyan', 1);
-                }
-            }
-        }
-        if (l.life <= 0) lasers.splice(i, 1);
-    }
 }
 
 function updateParticles() {
@@ -433,7 +441,6 @@ function drawGame() {
     if (!players[myId]) return;
     const me = players[myId];
 
-    // Camera
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -443,14 +450,13 @@ function drawGame() {
     const cy = canvas.height / 2 - me.y;
     ctx.translate(cx, cy);
 
-    // World
     ctx.strokeStyle = '#333'; ctx.lineWidth = 10;
     ctx.strokeRect(0, 0, WORLD_SIZE, WORLD_SIZE);
 
     ctx.fillStyle = '#fff';
     stars.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill(); });
 
-    // Combat Entities
+    // Draw Continuous Lasers
     lasers.forEach(l => {
         ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.angle);
         ctx.strokeStyle = '#0ff'; ctx.lineWidth = 6; ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
@@ -491,8 +497,6 @@ function drawGame() {
 
     ctx.restore();
 
-    // --- MINIMAP (Admin Only) ---
-    // Moved to Top Right to avoid admin panel
     if (isAdmin) drawMinimap(me);
 }
 
@@ -505,22 +509,18 @@ function drawMinimap(me) {
     const mapSize = 150;
     const padding = 10;
     const startX = canvas.width - mapSize - padding;
-    const startY = padding + 10; // Top Right
+    const startY = padding + 10;
 
-    // Background
     ctx.fillStyle = 'rgba(0, 20, 0, 0.8)';
     ctx.fillRect(startX, startY, mapSize, mapSize);
     ctx.strokeStyle = '#0f0'; ctx.lineWidth = 2;
     ctx.strokeRect(startX, startY, mapSize, mapSize);
 
-    // Players
     for (let id in players) {
         const p = players[id];
         if (p.dead) continue;
-        
         const mapX = startX + (p.x / WORLD_SIZE) * mapSize;
         const mapY = startY + (p.y / WORLD_SIZE) * mapSize;
-
         ctx.fillStyle = (id === myId) ? '#fff' : 'red';
         ctx.beginPath(); ctx.arc(mapX, mapY, 3, 0, Math.PI*2); ctx.fill();
     }
